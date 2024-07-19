@@ -7,40 +7,23 @@ Created on Wed Jul 17 11:48:25 2024
 
 import pandas as pd
 
-df = pd.read_csv('행정구역별_5세별_주민등록인구_2015-2023.csv', encoding='euc-kr')
+df = pd.read_excel('시군구별_인구이동.xlsx')
 
 # 결측치 확인
 df.info()
-# Index: 7530 entries, 0 to 11294
-# Data columns (total 12 columns):
-#  #   Column      Non-Null Count  Dtype  
-# ---  ------      --------------  -----  
-#  0   행정구역(동읍면)별  7530 non-null   object 
-#  1   5세별         7530 non-null   object 
-#  2   항목          7530 non-null   object 
-#  3   2015 년      7410 non-null   float64
-#  4   2016 년      7410 non-null   float64
-#  5   2017 년      7410 non-null   float64
-#  6   2018 년      7410 non-null   float64
-#  7   2019 년      7410 non-null   float64
-#  8   2020 년      7470 non-null   float64
-#  9   2021 년      7470 non-null   float64
-#  10  2022 년      7470 non-null   float64
-#  11  2023 년      7470 non-null   float64
+
 
 # %%
 
-# 마지막 열 제거, 필요없는 열 제거
-df = df[df['항목'] != '남자인구수[명]']
-df = df.iloc[:,:-1]
-df = df.drop(columns='단위')
-
 # 데이터 탐색
-df['행정구역(동읍면)별'].unique()
+df['행정구역(시군구)별'].unique()
+
+# \u3000 제거
+df['행정구역(시군구)별'] = df['행정구역(시군구)별'].str.replace('\u3000', '')
+df['행정구역(시군구)별'] = df['행정구역(시군구)별'].str.replace('  ', '')
 
 # 필요없는 행 제거
-df = df[df['행정구역(동읍면)별'] != '북부출장소']
-df = df[df['행정구역(동읍면)별'] != '동해출장소']
+
 df.info()
 # %%
 # 시군구 중복 지명 구분 처리
@@ -62,12 +45,12 @@ jeonnam_cities = '목포시,여수시,순천시,나주시,광양시,담양군,�
 gyungbuk_cities = '포항시,경주시,김천시,안동시,구미시,영주시,영천시,상주시,문경시,경산시,의성군,청송군,영양군,영덕군,청도군,고령군,성주군,칠곡군,예천군,봉화군,울진군,울릉군'.split(',')
 gyungnam_cities = '창원시,진주시,통영시,사천시,김해시,밀양시,거제시,양산시,의령군,함안군,창녕군,고성군,남해군,하동군,산청군,함양군,거창군,합천군'.split(',')
 jeju_cities = '제주시,서귀포시'.split(',')
-# df.head(45)
+
 # 행정구역 순서 파악하기
 cities_dict = {}
 cities = '서울특별시, 부산광역시, 인천광역시, 대구광역시, 대전광역시, 광주광역시, 울산광역시, 경기도, 충청북도, 충청남도, 전라남도, 경상북도, 경상남도, 강원특별자치도, 전북특별자치도, 제주특별자치도'.split(', ')
 for city in cities:
-    index = next(iter(df[df['행정구역(동읍면)별'] == city].index), None)
+    index = next(iter(df[df['행정구역(시군구)별'] == city].index), None)
     cities_dict[city] = index
     print(city, index)
     
@@ -85,26 +68,35 @@ for city in cities_dstr:
     
     i+=1
     if i >= len(cities_dstr):
-        df.loc[:,'행정구역(동읍면)별'] = df['행정구역(동읍면)별'].apply(lambda x: f'{city} {x}' if x in cities_dstr[city] else x) 
+        df.loc[:,'행정구역(시군구)별'] = df['행정구역(시군구)별'].apply(lambda x: f'{city} {x}' if x in cities_dstr[city] else x) 
         break
-    df.loc[:index[i],'행정구역(동읍면)별'] = df['행정구역(동읍면)별'].apply(lambda x: f'{city} {x}' if x in cities_dstr[city] else x)
+    df.loc[:index[i],'행정구역(시군구)별'] = df['행정구역(시군구)별'].apply(lambda x: f'{city} {x}' if x in cities_dstr[city] else x)
+    
 # %%
 # 인천광역시 남구(현 미추홀구) 데이터 결합
-df_michuholgu = df[df['행정구역(동읍면)별'] =='인천광역시 미추홀구']
-df_namgu = df[df['행정구역(동읍면)별'] =='인천광역시 남구'].set_index(df_michuholgu.index)
-df2 = df.drop(df[df['행정구역(동읍면)별'] =='인천광역시 남구'].index)
+df_michuholgu = df[df['행정구역(시군구)별'] =='인천광역시 미추홀구'].replace('-', 0)
+df_namgu = df[df['행정구역(시군구)별'] =='인천광역시 남구'].set_index(df_michuholgu.index)
+df_mic = df_michuholgu + df_namgu
 
-df2.update(df_namgu[df_namgu.notna()], overwrite=False)
+df2 = df.drop(df[df['행정구역(시군구)별'] =='인천광역시 남구'].index)
+
+df2.update(df_mic.iloc[:,1:], overwrite=True)
 
 # 경상북도 군위군(현 대구광역시) 데이터 결합
-gunwi_daegu = df2[df2['행정구역(동읍면)별'] =='대구광역시 군위군']
-gunwi_gyungbuk = df2[df2['행정구역(동읍면)별'] =='군위군'].set_index(gunwi_daegu.index)
-df3 = df2.drop(df2[df2['행정구역(동읍면)별'] =='군위군'].index)
+gunwi_daegu = df2[df2['행정구역(시군구)별'] =='대구광역시 군위군'].replace('-', 0)
+gunwi_gyungbuk = df2[df2['행정구역(시군구)별'] =='군위군'].set_index(gunwi_daegu.index)
+df_gun = gunwi_daegu + gunwi_gyungbuk
+df3 = df2.drop(df2[df2['행정구역(시군구)별'] =='군위군'].index)
 
-df3.update(gunwi_gyungbuk[gunwi_gyungbuk.notna()], overwrite=False)
+df3.update(df_gun.iloc[:,1:], overwrite=True)
 
 # 결측치 확인
 df3.info()
+
+# 사라진 시군구 행 제거
+
+df4 = df3.set_index('행정구역(시군구)별')
+df4 = df4.dropna(axis=0, how='all')
     
 # %%
 '''가임기 여성 데이터 전처리'''
